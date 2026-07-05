@@ -1,17 +1,26 @@
 import sqlite3
+from typing import Generator
+import os
 
 DB_NAME = os.environ.get("DB_NAME", default="music.db")
 
-def init_db():
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS songs (id TEXT PRIMARY KEY, title TEXT, file_path TEXT)"
-        )
-
-def get_db():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
+def get_db() -> Generator[sqlite3.Connection, None, None]:
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
     try:
         yield conn
     finally:
         conn.close()
+
+def init_db():
+    conn = sqlite3.connect("music_app.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS songs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            features TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
