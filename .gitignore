@@ -2,3 +2,4 @@
 /venv
 *.db
 /uploads
+/__pycache__
