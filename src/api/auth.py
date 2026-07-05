@@ -1,16 +1,21 @@
 import os
+from dotenv import load_dotenv
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-API_KEY_HEADER_NAME = "X-API-Key" 
+load_dotenv()
+
+API_KEY_HEADER_NAME = "X-API-Key"
+expected_hash = os.environ.get("MUSIC_API_KEY_HASH")
 api_key_header = APIKeyHeader(name=API_KEY_HEADER_NAME, auto_error=True)
+
 ph = PasswordHasher()
 
 def verify_api_key(api_key: str = Security(api_key_header)):
-    expected_hash = os.environ.get("MUSIC_API_KEY_HASH")
-    
+    print(expected_hash)
+    print(api_key)
     if not expected_hash:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
