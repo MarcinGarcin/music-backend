@@ -1,23 +1,31 @@
 import sqlite3
 import json
+import os
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from src.services.recommendation import extract_audio_features
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 _knn_model = None
 _model_version = -1
 _cached_ids = []
 
 
+DB_NAME = os.environ.get("DB_NAME", default = "music.db")
+
+
 def process_audio_task(song_id: int, file_path: str):
     features = extract_audio_features(file_path)
     
-    conn = sqlite3.connect("music_app.db")
+    conn = sqlite3.connect(DB_NAME)
     try:
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE songs SET features = ?, status = ? WHERE id = ?",
-            (json.dumps(features.tolist()), "ready", song_id)
+            (json.dumps(features), "ready", song_id)
         )
         conn.commit()
     finally:
