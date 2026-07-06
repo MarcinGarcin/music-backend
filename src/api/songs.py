@@ -14,6 +14,7 @@ from src.services.yt_service import YouTubeSearchService
 from src.api.auth import verify_api_key
 from src.services.recommendation import get_knn_recommendations, extract_audio_features
 from src.api.utils import process_audio_task, get_recommendation_model
+from src.config import UPLOAD_DIR
 
 
 router = APIRouter(
@@ -21,9 +22,6 @@ router = APIRouter(
     tags=["songs"],
     dependencies=[Depends(verify_api_key)]
 )
-
-UPLOAD_DIR = os.environ.get("DB_PATH", default="uploads/songs")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 yt_service = YouTubeSearchService()
 
@@ -47,6 +45,7 @@ async def upload_song(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
+    duration: int = Form(...),
     youtube_id: str = Form(...),
     db: sqlite3.Connection = Depends(get_db),
 ):
@@ -67,14 +66,16 @@ async def upload_song(
                 id,
                 title,
                 filename,
+                duration,
                 status
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
                 youtube_id,
                 title,
                 file.filename,
+                duration,
                 "processing"
             ),
         )
@@ -92,7 +93,7 @@ async def upload_song(
 @router.get("/")
 def get_songs(db: sqlite3.Connection = Depends(get_db)):
     cursor = db.cursor()
-    cursor.execute("SELECT * FROM songs")
+    cursor.execute("SELECT id, title, duration FROM songs")
     return [dict(row) for row in cursor.fetchall()]
 
 @router.get("/{song_id}")

@@ -18,6 +18,7 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS songs (
             id TEXT PRIMARY KEY,
+            duration INT,
             title TEXT NOT NULL,
             filename TEXT NOT NULL,
             status TEXT NOT NULL,

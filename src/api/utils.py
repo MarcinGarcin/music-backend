@@ -3,30 +3,39 @@ import json
 import os
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
+from concurrent.futures import ProcessPoolExecutor, TimeoutError as FutureTimeoutError
+from src.logger.logger import logger
+
+from src.config import UPLOAD_DIR, DB_NAME
 from src.services.recommendation import extract_audio_features
-from dotenv import load_dotenv
 
-
-load_dotenv()
 
 _knn_model = None
 _model_version = -1
 _cached_ids = []
 
+_executor = ProcessPoolExecutor(max_workers=2)
 
-DB_NAME = os.environ.get("DB_NAME", default = "music.db")
 
-
-def process_audio_task(song_id: int, file_path: str):
-    features = extract_audio_features(file_path)
-    
+def process_audio_task(song_id: str, file_path: str):
     conn = sqlite3.connect(DB_NAME)
     try:
+        future = _executor.submit(extract_audio_features, file_path)
+        try:
+            features = future.result(timeout=60)  
+        except FutureTimeoutError:
+            future.cancel()
+            raise RuntimeError("feature extraction timed out")
+
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE songs SET features = ?, status = ? WHERE id = ?",
             (json.dumps(features), "ready", song_id)
         )
+        conn.commit()
+    except Exception as e:
+        logger.exception(f"[{song_id}] extraction failed")
+        conn.execute("UPDATE songs SET status = ? WHERE id = ?", ("error", song_id))
         conn.commit()
     finally:
         conn.close()
@@ -54,3 +63,31 @@ def get_recommendation_model(db: sqlite3.Connection):
         _model_version = current_db_version
 
     return _knn_model, _cached_ids
+
+
+def reprocess_songs():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT id, filename FROM songs WHERE status = 'processing'"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        logger.info("No stuck songs found on startup")
+        return
+
+    logger.info(f"Found {len(rows)} stuck song(s), re-queuing...")
+    for row in rows:
+        file_path = os.path.join(UPLOAD_DIR, row["filename"])
+        if not os.path.exists(file_path):
+            logger.warning(f"[{row['id']}] file missing on disk, marking as error")
+            conn = sqlite3.connect(DB_NAME)
+            conn.execute("UPDATE songs SET status = 'error' WHERE id = ?", (row["id"],))
+            conn.commit()
+            conn.close()
+            continue
+
+        _executor.submit(process_audio_task, row["id"], file_path)
