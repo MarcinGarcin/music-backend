@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 UPLOAD_DIR = os.environ.get("DB_PATH", default="uploads/songs")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
