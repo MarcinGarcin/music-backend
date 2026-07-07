@@ -1,6 +1,10 @@
 fastapi
 uvicorn
 python-multipart
-pydantic
-yt-dlp
 python-dotenv
+pydantic
+argon2-cffi
+numpy
+scikit-learn
+librosa
+yt-dlp
